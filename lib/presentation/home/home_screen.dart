@@ -81,37 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
 
-          // 2. Custom header (optional, like "HealthySwaps" logo overlay)
-          Positioned(
-            top: 60,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  'HealthySwaps',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Draggable bottom sheet for main interactions
+          // Draggable bottom sheet for main interactions
           DraggableScrollableSheet(
             initialChildSize: 0.45,
             minChildSize: 0.3,

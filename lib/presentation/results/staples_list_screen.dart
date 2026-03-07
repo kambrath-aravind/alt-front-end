@@ -58,6 +58,40 @@ class StaplesListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Staples'),
+        actions: [
+          if (listItems.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              tooltip: 'Clear List',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Clear List?'),
+                    content: const Text(
+                        'This will remove all items from your staples list.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          ref.read(staplesListProvider.notifier).clearAll();
+                          Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Clear All'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: userProfileAsync.when(
         data: (userProfile) {
@@ -145,29 +179,32 @@ class StaplesListScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
       ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'notepad_fab',
-            onPressed: () {
-              context.push('/notepad');
-            },
-            icon: const Icon(Icons.edit_note),
-            label: const Text('New List'),
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton.extended(
-            heroTag: 'scan_fab',
-            onPressed: () {
-              context.push('/scan');
-            },
-            icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Scan'),
-          ),
-        ],
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'notepad_fab',
+              onPressed: () {
+                context.push('/notepad');
+              },
+              icon: const Icon(Icons.edit_note),
+              label: const Text('New List'),
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+            ),
+            const SizedBox(height: 16),
+            FloatingActionButton.extended(
+              heroTag: 'scan_fab',
+              onPressed: () {
+                context.push('/scan');
+              },
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -142,21 +142,24 @@ class _NotepadScreenState extends ConsumerState<NotepadScreen> {
             const SizedBox(height: 24),
 
             // Optimize action
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _items.isNotEmpty ? _onOptimize : null,
-                icon: const Icon(Icons.auto_awesome),
-                label:
-                    const Text('Optimize List', style: TextStyle(fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.grey.shade600,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            SafeArea(
+              top: false,
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _items.isNotEmpty ? _onOptimize : null,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Optimize List',
+                      style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledForegroundColor: Colors.grey.shade600,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),

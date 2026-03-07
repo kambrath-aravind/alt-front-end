@@ -95,7 +95,17 @@ A secondary flow exists via the Notepad: type grocery items → optimize the lis
   3. Persist with same storage mechanism as 2.1
 - **Impact**: Creates recurring engagement. Users open the app to see their progress.
 
-### 3.3 Connect Home Screen to Real Data
+### 3.3 Search Relevance (Category-Aware Search)
+- **What**: Searching "apple" returns "apple cider vinegar" because OpenFoodFacts ranks processed products (more scans) above whole foods. Fresh produce barely exists in the database.
+- **Where**: `lib/data/repositories/product_repository.dart` → `searchProductsByText`
+- **How**:
+  1. For simple single-word queries (e.g. "apple", "bread", "milk"), search by **category first** using OpenFoodFacts category taxonomy before falling back to free-text
+  2. Post-filter results: score by how closely the product **name** matches the query (startsWith > contains > ingredients-only)
+  3. Consider a curated mapping for common grocery terms → OpenFoodFacts categories (e.g. "apple" → `en:apples`, "bread" → `en:breads`)
+  4. Long-term: consider supplementing OpenFoodFacts with a produce/whole-foods database since OFF has poor coverage for unpackaged items
+- **Impact**: Core to user trust. If a user types "apple" and gets vinegar, they lose confidence in the app.
+
+### 3.4 Connect Home Screen to Real Data
 - **What**: Replace hardcoded swap cards on the home screen with actual recent items from the staples list.
 - **Where**: `lib/presentation/home/home_screen.dart`
 - **How**: Read from `staplesListProvider`, show the last 3 items. If list is empty, show onboarding prompts ("Scan your first item!").

@@ -173,4 +173,8 @@ class StaplesListNotifier extends StateNotifier<List<dynamic>> {
     newList.removeAt(index);
     state = newList;
   }
+
+  void clearAll() {
+    state = [];
+  }
 }

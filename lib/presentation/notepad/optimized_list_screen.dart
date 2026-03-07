@@ -178,45 +178,49 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
         ),
 
         // Action Buttons
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/');
-                    }
-                  },
-                  child: const Text('Edit List'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Add the selected alternative for each query
-                    for (final result in info.results) {
-                      if (result.alternatives.isNotEmpty) {
-                        final selectedIdx = _selectedIndices[result.query] ?? 0;
-                        ref.read(staplesListProvider.notifier).addItem(result
-                            .alternatives[selectedIdx]
-                            .copyWith(isAccepted: true));
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/');
                       }
-                    }
-                    context.go('/');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
+                    },
+                    child: const Text('Edit List'),
                   ),
-                  child: const Text('Accept Selected'),
                 ),
-              )
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Add the selected alternative for each query
+                      for (final result in info.results) {
+                        if (result.alternatives.isNotEmpty) {
+                          final selectedIdx =
+                              _selectedIndices[result.query] ?? 0;
+                          ref.read(staplesListProvider.notifier).addItem(result
+                              .alternatives[selectedIdx]
+                              .copyWith(isAccepted: true));
+                        }
+                      }
+                      context.go('/');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Accept Selected'),
+                  ),
+                )
+              ],
+            ),
           ),
         )
       ],

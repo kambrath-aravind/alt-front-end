@@ -305,11 +305,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
           _buildTopControls(),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _stopScanning,
-        backgroundColor: Colors.red,
-        icon: const Icon(Icons.stop),
-        label: const Text("Stop"),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        child: FloatingActionButton.extended(
+          onPressed: _stopScanning,
+          backgroundColor: Colors.red,
+          icon: const Icon(Icons.stop),
+          label: const Text("Stop"),
+        ),
       ),
     );
   }
