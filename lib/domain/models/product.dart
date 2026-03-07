@@ -16,6 +16,7 @@ class Product {
   final String? nutriScore;
   final int? novaGroup;
   final List<String> ingredients;
+  final List<String> ingredientsTags;
   final List<String> categoryTags;
   final List<String> ciqualTags;
   final String? comparedToCategory;
@@ -42,6 +43,7 @@ class Product {
     this.nutriScore,
     this.novaGroup,
     required this.ingredients,
+    this.ingredientsTags = const [],
     required this.categoryTags,
     this.ciqualTags = const [],
     this.comparedToCategory,
@@ -57,6 +59,7 @@ class Product {
       nutriScore: map['nutriscore_grade'],
       novaGroup: map['nova_group'],
       ingredients: _parseIngredients(map['ingredients_text']),
+      ingredientsTags: _parseListField(map['ingredients_tags']),
       categoryTags: _parseListField(map['categories_tags']),
       ciqualTags: _parseListField(map['ciqual_food_name_tags']),
       comparedToCategory: map['compared_to_category'],
@@ -124,6 +127,8 @@ class Product {
       'sugars_100g',
       'salt_100g',
       'saturated-fat_100g',
+      'fat_100g',
+      'cholesterol_100g',
       'fiber_100g',
       'proteins_100g'
     ];

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../../domain/models/product.dart';
@@ -19,9 +20,9 @@ class ProductRepository {
         final response = await _client.get(url).timeout(_timeout);
         return response;
       } on TimeoutException {
-        print('[ALT_APP] Timeout on attempt ${attempt + 1} for $url');
+        debugPrint('[ALT_APP] Timeout on attempt ${attempt + 1} for $url');
       } catch (e) {
-        print('[ALT_APP] Error on attempt ${attempt + 1}: $e');
+        debugPrint('[ALT_APP] Error on attempt ${attempt + 1}: $e');
       }
 
       // Wait before retry (exponential backoff: 500ms, 1000ms)
@@ -45,7 +46,7 @@ class ProductRepository {
 
       return null;
     } catch (e) {
-      print('[ALT_APP] Error fetching product: $e');
+      debugPrint('[ALT_APP] Error fetching product: $e');
       return null;
     }
   }
@@ -53,37 +54,69 @@ class ProductRepository {
   Future<Product?> _fetchFromOpenFoodFacts(String barcode) async {
     final url = Uri.parse(
         'https://world.openfoodfacts.org/api/v0/product/$barcode.json');
-    print("[ALT_APP] Fetching URL: $url");
+    debugPrint("[ALT_APP] Fetching URL: $url");
 
     final response = await _getWithRetry(url);
     if (response == null) return null;
 
-    print("[ALT_APP] Response Code: ${response.statusCode}");
+    debugPrint("[ALT_APP] Response Code: ${response.statusCode}");
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      print("[ALT_APP] API Status: ${data['status']}");
+      debugPrint("[ALT_APP] API Status: ${data['status']}");
       if (data['status'] == 1 && data['product'] != null) {
         return Product.fromMap(data['product']);
       } else {
-        print(
+        debugPrint(
             "Product not found. Status: ${data['status']}, Verbose: ${data['status_verbose']}");
       }
     }
     return null;
   }
 
-  /// Search for better products in a specific category.
+  /// Search for products using a general text search phrase to support fuzzy matching and typos.
   /// Filters to products sold in the specified country (default: United States).
-  Future<List<Product>> searchProducts(String categoryTag,
+  /// Best for human-entered text (like notepad inputs).
+  Future<List<Product>> searchProductsByText(String query,
       {String countryTag = 'united-states'}) async {
+    // We use search_terms to allow openfoodfacts to do fuzzy matching on names/categories etc.
+    // Instead of forcing nutrition sorting (which ruins relevancy for text matches), we sort by popularity/scans.
+    final url =
+        Uri.parse('https://world.openfoodfacts.org/cgi/search.pl?action=process'
+            '&search_terms=$query'
+            '&sort_by=unique_scans_n'
+            '&tagtype_0=countries&tag_contains_0=contains&tag_0=$countryTag'
+            '&page_size=30&json=1');
+
+    debugPrint("[ALT_APP] Searching Text: $url");
+
+    final response = await _getWithRetry(url);
+    if (response == null) return [];
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['products'] != null) {
+        return (data['products'] as List)
+            .map((p) => Product.fromMap(p))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  /// Search for products matching a specific exact backend category tag.
+  /// Filters to products sold in the specified country (default: United States).
+  /// Best for machine-to-machine lookups (like finding alternatives to a scanned barcode's category).
+  Future<List<Product>> searchProductsByCategory(String categoryTag,
+      {String countryTag = 'united-states'}) async {
+    // We use strict tag filtering to ensure we only get apples-to-apples comparisons.
     final url =
         Uri.parse('https://world.openfoodfacts.org/cgi/search.pl?action=process'
             '&tagtype_0=categories&tag_contains_0=contains&tag_0=$categoryTag'
             '&tagtype_1=countries&tag_contains_1=contains&tag_1=$countryTag'
-            '&sort_by=nutrition_grade_asc&page_size=50&json=1');
+            '&sort_by=nutrition_grade_asc&page_size=30&json=1');
 
-    print("[ALT_APP] Searching Category: $url");
+    debugPrint("[ALT_APP] Searching Category: $url");
 
     final response = await _getWithRetry(url);
     if (response == null) return [];

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:developer';
 import 'package:alt/data/repositories/product_repository.dart';
 
 void main() {
@@ -6,13 +7,13 @@ void main() {
     final repository = ProductRepository();
     // Use a common category likely to have results
     const category = 'en:sodas';
-    print('Testing searchProducts with category: $category');
+    log('Testing searchProducts with category: $category');
 
-    final products = await repository.searchProducts(category);
+    final products = await repository.searchProductsByCategory(category);
 
-    print('Fetched ${products.length} products.');
+    log('Fetched ${products.length} products.');
     for (var p in products) {
-      print(' - ${p.name} (${p.brand})');
+      log(' - ${p.name} (${p.brand})');
     }
 
     expect(products, isNotEmpty, reason: 'Should return a list of products');

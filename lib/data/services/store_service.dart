@@ -1,4 +1,5 @@
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:developer';
 
 class StoreService {
   /// Searches for a product online using name, brand, and optionally UPC barcode.
@@ -21,7 +22,7 @@ class StoreService {
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      print("Could not launch store search for $productName");
+      log("Could not launch store search for $productName");
     }
   }
 }

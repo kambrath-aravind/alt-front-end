@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
@@ -6,6 +7,8 @@ import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart
 import 'package:go_router/go_router.dart';
 import 'dart:io';
 import '../../utils/camera_utils.dart';
+import '../../app/providers.dart';
+import '../../domain/models/user_profile.dart';
 import 'scan_controller.dart';
 
 class ScannerScreen extends ConsumerStatefulWidget {
@@ -47,7 +50,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
         isPhysical = iosInfo.isPhysicalDevice;
       }
     } catch (e) {
-      print("[ScannerScreen] Device check failed: $e");
+      debugPrint("[ScannerScreen] Device check failed: $e");
     }
 
     if (mounted) {
@@ -65,7 +68,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
         try {
           await _controller!.startImageStream(_processImage);
         } catch (e) {
-          print("Error restarting stream: $e");
+          debugPrint("Error restarting stream: $e");
         }
       }
       return;
@@ -95,7 +98,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
       setState(() => _isInit = true);
       _controller!.startImageStream(_processImage);
     } catch (e) {
-      print("Camera init error: $e");
+      debugPrint("Camera init error: $e");
     }
   }
 
@@ -122,7 +125,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
 
       await _processBarcode(inputImage);
     } catch (e) {
-      print("Scan error: $e");
+      debugPrint("Scan error: $e");
     } finally {
       if (mounted) _isProcessing = false;
     }
@@ -239,7 +242,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
   Widget build(BuildContext context) {
     ref.listen(scanResultProvider, (previous, next) {
       if (next != null) {
-        context.go('/results');
+        context.go('/product');
       }
     });
 
@@ -258,32 +261,37 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     if (!_canScan || !_isInit || _controller == null) {
       return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.qr_code_scanner,
-                  size: 80, color: Colors.white54),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _startScanning,
-                icon: const Icon(Icons.camera_alt),
-                label: const Text("Tap to Scan"),
-                style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 16)),
+        body: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.qr_code_scanner,
+                      size: 80, color: Colors.white54),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: _startScanning,
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text("Tap to Scan"),
+                    style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 16)),
+                  ),
+                  if (!_isPhysicalDevice) ...[
+                    const SizedBox(height: 20),
+                    TextButton.icon(
+                      onPressed: _showTestBarcodes,
+                      icon: const Icon(Icons.qr_code, color: Colors.white70),
+                      label: const Text("Test with Barcodes",
+                          style: TextStyle(color: Colors.white70)),
+                    ),
+                  ]
+                ],
               ),
-              if (!_isPhysicalDevice) ...[
-                const SizedBox(height: 20),
-                TextButton.icon(
-                  onPressed: _showTestBarcodes,
-                  icon: const Icon(Icons.qr_code, color: Colors.white70),
-                  label: const Text("Test with Barcodes",
-                      style: TextStyle(color: Colors.white70)),
-                ),
-              ]
-            ],
-          ),
+            ),
+            _buildTopControls(),
+          ],
         ),
       );
     }
@@ -294,6 +302,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
         children: [
           CameraPreview(_controller!),
           _buildOverlay(),
+          _buildTopControls(),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -305,17 +314,170 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     );
   }
 
+  Widget _buildTopControls() {
+    return Positioned(
+      top: 50,
+      left: 16,
+      right: 16,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () {
+                _stopScanning();
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/');
+                }
+              },
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: TextButton.icon(
+              onPressed: _showSettingsDialog,
+              icon: const Icon(Icons.settings, color: Colors.white, size: 20),
+              label: const Text(
+                "Settings",
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    final profile = ref.read(userProfileProvider).valueOrNull;
+    final currentZip = profile?.defaultZipCode ?? '';
+    final currentDiets = profile?.dietaryPreferences ?? [];
+
+    final controller = TextEditingController(text: currentZip);
+    var selectedDiets = List<DietRestriction>.from(currentDiets);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text("Settings & Preferences"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Local Prices",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "ZIP Code",
+                    hintText: "e.g. 90210",
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Health Indicator",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                ...DietRestriction.values.map((diet) {
+                  return CheckboxListTile(
+                    title: Text(diet.displayName,
+                        style: const TextStyle(fontSize: 14)),
+                    value: selectedDiets.contains(diet),
+                    onChanged: (bool? checked) {
+                      setState(() {
+                        if (checked == true) {
+                          selectedDiets.add(diet);
+                        } else {
+                          selectedDiets.remove(diet);
+                        }
+                      });
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
+                  );
+                }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(userProfileProvider.notifier).updateProfile(
+                    zip: controller.text.trim(), diets: selectedDiets);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black, foregroundColor: Colors.white),
+              child: const Text("Save"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOverlay() {
     return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.green.withOpacity(0.5), width: 4),
+      child: Center(
+        child: Container(
+          width: 250,
+          height: 250,
+          decoration: BoxDecoration(
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.4), width: 2),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.qr_code_scanner, color: Colors.white, size: 54),
+              const SizedBox(height: 24),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: Colors.black.withValues(alpha: 0.3),
+                    child: const Text(
+                      "Scanning Barcode...",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.1),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        child: const Center(
-            child: Text(
-          "Scanning Barcode...",
-          style: TextStyle(color: Colors.white70, fontSize: 18),
-        )),
       ),
     );
   }

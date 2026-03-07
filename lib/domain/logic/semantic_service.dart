@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
@@ -44,11 +45,11 @@ class SemanticService {
       await _loadVocab();
 
       _isInitialized = true;
-      print(
+      debugPrint(
           '[SemanticService] Initialized. Dim: $_embeddingDim, Seq: $_maxSeqLength');
     } catch (e) {
       _initError = 'Failed to init SemanticService: $e';
-      print('[SemanticService] $_initError');
+      debugPrint('[SemanticService] $_initError');
       _isInitialized = false;
     }
   }
@@ -66,7 +67,7 @@ class SemanticService {
         }
       }
     } catch (e) {
-      print('[SemanticService] Error loading vocab: $e');
+      debugPrint('[SemanticService] Error loading vocab: $e');
     }
   }
 
@@ -123,7 +124,7 @@ class SemanticService {
 
       return (output[0] as List).cast<double>();
     } catch (e) {
-      print('[SemanticService] Inference failed: $e');
+      debugPrint('[SemanticService] Inference failed: $e');
       return [];
     }
   }
@@ -173,6 +174,21 @@ class SemanticService {
       mag2 += v2[i] * v2[i];
     }
     return mag1 == 0 || mag2 == 0 ? 0.0 : dot / (sqrt(mag1) * sqrt(mag2));
+  }
+
+  /// Calculates the Jaccard similarity coefficient between two lists of strings.
+  /// Useful for comparing ingredient lists or categorical tags.
+  static double jaccardSimilarity(List<String> a, List<String> b) {
+    if (a.isEmpty && b.isEmpty) return 1.0;
+    if (a.isEmpty || b.isEmpty) return 0.0;
+
+    final setA = a.map((s) => s.trim().toLowerCase()).toSet();
+    final setB = b.map((s) => s.trim().toLowerCase()).toSet();
+
+    final intersection = setA.intersection(setB).length;
+    final union = setA.union(setB).length;
+
+    return intersection / union;
   }
 
   void dispose() {

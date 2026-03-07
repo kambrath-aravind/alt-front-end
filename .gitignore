@@ -39,22 +39,33 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android build artifacts
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/app/build/
+/android/app/.cxx/
+/android/build/
+**/android/**/GeneratedPluginRegistrant.java
+local.properties
 
 # Ignore Android Heap Dumps
 *.hprof
-
-# Ignore local properties
-local.properties
 
 # Ignore keystores
 *.jks
 *.keystore
 
+# iOS build artifacts
+/ios/Pods/
+/ios/Podfile.lock
+/ios/.symlinks/
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Flutter.podspec
+/ios/Runner.xcworkspace/xcshareddata/
+
 # macOS specific
 .DS_Store
 
-
+# Environment
+.env
