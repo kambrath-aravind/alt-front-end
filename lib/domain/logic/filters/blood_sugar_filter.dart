@@ -9,9 +9,15 @@ class BloodSugarFilter implements DietaryFilter {
   }
 
   @override
-  String violationReason(Product product) {
+  double score(Product product) {
     final sugar = product.nutriments['sugars_100g'] ?? 0;
-    return '$sugar g of sugar per 100g. Too high for Blood Sugar focus.';
+    return sugar > 5.0 ? 0.0 : 1.0;
+  }
+
+  @override
+  List<String> violationReasons(Product product) {
+    final sugar = product.nutriments['sugars_100g'] ?? 0;
+    return ['$sugar g of sugar per 100g. Too high for Blood Sugar focus.'];
   }
 
   @override

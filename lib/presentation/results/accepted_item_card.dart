@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/swap_proposal.dart';
+import '../../app/providers.dart';
 
-class AcceptedItemCard extends StatelessWidget {
+class AcceptedItemCard extends ConsumerWidget {
   final SwapProposal proposal;
 
   const AcceptedItemCard({
@@ -10,8 +12,15 @@ class AcceptedItemCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final altProduct = proposal.alternativeProduct;
+    final userProfile = ref.watch(userProfileProvider).valueOrNull;
+    final healthFilter = ref.watch(customHealthFilterProvider);
+
+    double altScore = 0.0;
+    if (userProfile != null) {
+      altScore = healthFilter.getAltScore(proposal.alternativeProduct, userProfile);
+    }
 
     return Card(
       elevation: 2,
@@ -70,10 +79,17 @@ class AcceptedItemCard extends StatelessWidget {
                               color: Colors.green, size: 20),
                         ],
                       ),
-                      Text(
-                        altProduct.brand,
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 12),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _buildMiniBadgeAltScore(altScore),
+                          const SizedBox(width: 4),
+                          Text(
+                            altProduct.brand,
+                            style:
+                                const TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -100,7 +116,7 @@ class AcceptedItemCard extends StatelessWidget {
                               size: 16, color: Colors.blueGrey.shade700),
                           const SizedBox(width: 6),
                           Text(
-                            proposal.storeLocation,
+                            proposal.storeLocation ?? 'Unknown Location',
                             style: TextStyle(
                                 fontSize: 13,
                                 color: Colors.blueGrey.shade800,
@@ -109,10 +125,12 @@ class AcceptedItemCard extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        '\$${proposal.alternativePrice.toStringAsFixed(2)}',
+                        proposal.alternativePrice != null
+                            ? '\$${proposal.alternativePrice!.toStringAsFixed(2)}'
+                            : '',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                          fontSize: 16,
                         ),
                       ),
                     ],
@@ -146,5 +164,29 @@ class AcceptedItemCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildMiniBadge(String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(value,
+          style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+    );
+  }
+
+  Widget _buildMiniBadgeAltScore(double score) {
+    Color color = Colors.green;
+    if (score < 50) {
+      color = Colors.red;
+    } else if (score < 80) {
+      color = Colors.orange;
+    }
+    return _buildMiniBadge(score.toStringAsFixed(0), color);
   }
 }

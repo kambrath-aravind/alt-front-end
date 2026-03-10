@@ -6,17 +6,14 @@ import '../models/swap_proposal.dart';
 import 'optimized_list_info.dart';
 import 'scoring/candidate_scorer.dart';
 import '../../data/repositories/product_repository.dart';
-import '../../data/services/omni_store_service.dart';
 
 /// Facade Pattern / Orchestrator for bulk list processing.
 class NotepadOptimizationEngine {
   final ProductRepository _productRepository;
-  final OmniStoreService _omniStoreService;
   final CandidateScorer _compositeScorer;
 
   NotepadOptimizationEngine(
     this._productRepository,
-    this._omniStoreService,
     this._compositeScorer,
   );
 
@@ -48,7 +45,7 @@ class NotepadOptimizationEngine {
 
       if (alternatives.isNotEmpty) {
         results.add(OptimizationResult(query, alternatives));
-        totalCost += alternatives.first.alternativePrice;
+        totalCost += alternatives.first.alternativePrice ?? 0.0;
       } else {
         unresolvable.add(query);
       }
@@ -86,60 +83,46 @@ class NotepadOptimizationEngine {
     // Sort descending by highest offline score
     preFiltered.sort((a, b) => b.score.compareTo(a.score));
 
-    // Take exactly the Top 3 to avoid spamming the Kroger/Walmart API
-    final top3HealthyCandidates =
-        preFiltered.take(3).map((e) => e.candidate).toList();
+    // Take exactly the Top 5 to display to the user
+    final top5HealthyCandidates =
+        preFiltered.take(5).map((e) => e.candidate).toList();
 
-    // TIER B, PASS 2: Concurrent Pricing API Fetches
-    final proposalFutures = top3HealthyCandidates.map((candidate) async {
-      // Fetch pricing over network
-      final pricingInfo = await _omniStoreService.findLowestPriceNearby(
-        candidate.id,
-        candidate.name,
-        user.defaultZipCode,
-        user.searchRadiusMiles,
-      );
-
-      // Finalize composite score including network data
+    // TIER B, PASS 2: Build offline SwapProposals
+    final proposalFutures = top5HealthyCandidates.map((candidate) async {
+      // Finalize composite score purely locally
       final finalScoreResult =
-          await _compositeScorer.score(candidate, pricingInfo ?? {}, user);
+          await _compositeScorer.score(candidate, {}, user);
 
-      debugPrint(
-          '[NotepadEngine] Candidate [${candidate.name}] final scored: ${finalScoreResult.value}');
-
-      if (finalScoreResult.value > 0.0) {
-        return SwapProposal(
-          originalProduct: Product(
-              id: 'input',
-              name: query,
-              brand: '',
-              categoryTags: [],
-              ingredients: []),
-          alternativeProduct: candidate,
-          priceDifference: 0.0,
-          healthBenefit:
-              'Score: ${(finalScoreResult.value * 100).toStringAsFixed(0)}/100',
-          storeLocation: pricingInfo?['storeName'] ?? 'Online/Unknown',
-          storeAddress: pricingInfo?['storeAddress'],
-          alternativePrice: (pricingInfo?['price'] as double?) ?? 0.0,
-          reasoning: finalScoreResult.reasoning,
-        );
-      }
-      return null;
+      return SwapProposal(
+        originalProduct: Product(
+            id: 'input',
+            name: query,
+            brand: '',
+            categoryTags: [],
+            ingredients: []),
+        alternativeProduct: candidate,
+        priceDifference: null,
+        healthBenefit:
+            'Score: ${(finalScoreResult.value * 100).toStringAsFixed(0)}/100',
+        storeLocation: null,
+        storeAddress: null,
+        alternativePrice: null,
+        reasoning: finalScoreResult.reasoning,
+      );
     }).toList();
 
-    final resolvedProposals = await Future.wait(proposalFutures);
-
-    // Filter out nulls and sort final results
-    final List<SwapProposal> validProposals =
-        resolvedProposals.whereType<SwapProposal>().toList();
+    final validProposals = await Future.wait(proposalFutures);
 
     validProposals.sort((a, b) {
       final scoreA =
           double.parse(a.healthBenefit.replaceAll(RegExp(r'[^0-9]'), ''));
       final scoreB =
           double.parse(b.healthBenefit.replaceAll(RegExp(r'[^0-9]'), ''));
-      return scoreB.compareTo(scoreA);
+      
+      final scoreCompare = scoreB.compareTo(scoreA);
+      if (scoreCompare != 0) return scoreCompare;
+
+      return (a.alternativePrice ?? 0.0).compareTo(b.alternativePrice ?? 0.0);
     });
 
     return validProposals;

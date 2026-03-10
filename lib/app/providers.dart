@@ -52,7 +52,6 @@ final compositeScorerProvider = Provider<CandidateScorer>((ref) {
 final notepadOptimizationEngineProvider = Provider((ref) {
   return NotepadOptimizationEngine(
     ref.watch(productRepositoryProvider),
-    ref.watch(omniStoreServiceProvider),
     ref.watch(compositeScorerProvider),
   );
 });

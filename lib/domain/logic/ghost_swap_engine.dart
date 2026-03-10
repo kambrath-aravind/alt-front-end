@@ -9,6 +9,7 @@ import '../../data/repositories/rag_cache_repository.dart';
 import '../../data/repositories/product_repository.dart';
 import 'custom_health_filter.dart';
 import 'semantic_service.dart';
+import 'pricing/comparison_gate.dart';
 
 class GhostSwapEngine {
   final ProductRepository _productRepository;
@@ -26,24 +27,98 @@ class GhostSwapEngine {
   );
 
   /// The main pipeline for the "Ghost Swap" mechanic.
-  Future<SwapProposal?> evaluateAndPropose(
+  Future<List<SwapProposal>> getAlternatives(
       Product scannedProduct, UserProfile user) async {
     final isViolation = _healthFilter.isViolation(scannedProduct, user);
 
     if (!isViolation) {
-      return null;
+      return [];
     }
 
     final cachedProposal = await _cacheRepository.getCachedProposal(
         scannedProduct.id, user.dietaryPreferences);
     if (cachedProposal != null) {
-      return cachedProposal;
+      // For now, if cached, wrap in list.
+      return [cachedProposal];
     }
 
     final alternatives = await findAlternatives(scannedProduct, user);
-    if (alternatives.isEmpty) return null;
+    if (alternatives.isEmpty) return [];
 
-    return await fetchPricing(scannedProduct, alternatives.first, user);
+    // Pre-fetch original pricing once
+    final originalStoreResult = await _omniStoreService.findLowestPriceNearby(
+      scannedProduct.id,
+      scannedProduct.name,
+      user.defaultZipCode,
+      user.searchRadiusMiles,
+    ).catchError((_) => null);
+    
+    final originalPriceActual = (originalStoreResult?['price'] as double?) ?? 5.99;
+
+    // Concurrently fetch pricing for all alternatives
+    final proposals = await Future.wait(alternatives.map((alt) async {
+      final storeResult = await _omniStoreService.findLowestPriceNearby(
+        alt.id,
+        alt.name,
+        user.defaultZipCode,
+        user.searchRadiusMiles,
+      ).catchError((_) => null);
+
+      double? priceDiff;
+      double? alternativePrice;
+      String? storeLoc;
+      String? storeAdd;
+      bool comparisonAvailable = true;
+      String? comparisonBasis;
+      double? equivalentAlternativeCost;
+      String? comparisonReason;
+
+      if (storeResult != null) {
+        alternativePrice = storeResult['price'] as double;
+        
+        final gateResult = ComparisonGate.canCompareProducts(
+          original: scannedProduct,
+          alternative: alt,
+          originalPrice: originalPriceActual,
+          alternativePrice: alternativePrice,
+        );
+
+        comparisonAvailable = gateResult.comparisonAvailable;
+        comparisonBasis = gateResult.comparisonBasis;
+        equivalentAlternativeCost = gateResult.equivalentAlternativeCost;
+        comparisonReason = gateResult.reason;
+
+        if (comparisonAvailable) {
+          priceDiff = gateResult.difference;
+        }
+
+        storeLoc = '${storeResult['storeName']} (${storeResult['distance']})';
+        storeAdd = storeResult['storeAddress'] as String?;
+      }
+
+      final proposal = SwapProposal(
+        originalProduct: scannedProduct,
+        alternativeProduct: alt,
+        priceDifference: priceDiff,
+        healthBenefit: _healthFilter.calculateBenefit(scannedProduct, alt, user),
+        storeLocation: storeLoc,
+        storeAddress: storeAdd,
+        alternativePrice: alternativePrice,
+        reasoning: null,
+        comparisonAvailable: comparisonAvailable,
+        comparisonBasis: comparisonBasis,
+        equivalentAlternativeCost: equivalentAlternativeCost,
+        comparisonReason: comparisonReason,
+      );
+
+      // Cache the proposal
+      await _cacheRepository.cacheProposal(
+          scannedProduct.id, user.dietaryPreferences, proposal);
+
+      return proposal;
+    }));
+
+    return proposals;
   }
 
   /// Step 2 of Workflow: Discover the top 5 semantic alternatives
@@ -57,35 +132,53 @@ class GhostSwapEngine {
       return [];
     }
 
-    final primaryCategory = searchTerms.first;
-    debugPrint(
-        '[GhostSwap] Searching OpenFoodFacts for category: $primaryCategory');
+    List<Product> candidates = [];
+    List<Product> safeCandidates = [];
+    String? successfulCategory;
 
-    final candidates =
-        await _productRepository.searchProductsByCategory(primaryCategory);
-    debugPrint(
-        '[GhostSwap] Found ${candidates.length} candidates in category.');
+    for (final term in searchTerms) {
+      debugPrint(
+          '[GhostSwap] Searching OpenFoodFacts for category/term: $term');
 
-    if (candidates.isEmpty) return [];
-
-    // 1. Health filter — remove violations and self-match
-    final safeCandidates = candidates.where((c) {
-      final safe =
-          c.id != scannedProduct.id && !_healthFilter.isViolation(c, user);
-      if (!safe) {
-        debugPrint(
-            '[GhostSwap-Debug] Candidate ${c.name} (${c.id}) rejected by health filter or matches ID.');
+      // Try searching by strict category
+      candidates = await _productRepository.searchProductsByCategory(term);
+      
+      // Fallback to text search if strict category fails (useful for ciqual tags)
+      if (candidates.isEmpty) {
+        debugPrint('[GhostSwap] Category search yielded 0. Trying text search for: $term');
+        candidates = await _productRepository.searchProductsByText(term);
       }
-      return safe;
-    }).toList();
 
-    debugPrint(
-        '[GhostSwap] ${safeCandidates.length} candidates passed health filter.');
+      debugPrint(
+          '[GhostSwap] Found ${candidates.length} candidates for term: $term.');
+
+      if (candidates.isEmpty) continue;
+
+      // 1. Remove self-match. (We no longer strictly filter health violations)
+      safeCandidates = candidates.where((c) {
+        final safe = c.id != scannedProduct.id;
+        return safe;
+      }).toList();
+
+      debugPrint(
+          '[GhostSwap] ${safeCandidates.length} candidates available for term: $term.');
+
+      if (safeCandidates.isNotEmpty) {
+        successfulCategory = term;
+        break; // Found our safe candidates pool! Move on.
+      } else {
+        debugPrint(
+            '[GhostSwap-Debug] All ${candidates.length} candidates failed the health filter for $term. Trying next term...');
+      }
+    }
+
     if (safeCandidates.isEmpty) {
       debugPrint(
-          '[GhostSwap-Debug] Returning empty because all ${candidates.length} candidates failed the health filter.');
+          '[GhostSwap-Debug] Returning empty because all search terms failed to find a healthy alternative.');
       return [];
     }
+
+    final primaryCategory = successfulCategory!;
 
     // 2. Category pre-filter — only keep candidates sharing at least one
     //    category tag with the scanned product (eliminates Taco Shells for a cookie scan)
@@ -140,18 +233,14 @@ class GhostSwapEngine {
         final semanticScore = _semanticService.cosineSimilarity(
             originalEmbedding, candidateEmbedding);
 
-        // NutriScore bonus: A=1.0, B=0.8, C=0.6, D=0.4, E=0.2, unknown=0.5
-        final nutriBonus = _nutriScoreBonus(candidate.nutriScore);
+        final altScore = _healthFilter.getAltScore(candidate, user);
 
-        // Nova group bonus: 1=1.0 (unprocessed), 2=0.75, 3=0.5, 4=0.2 (ultra-processed)
-        final novaBonus = _novaGroupBonus(candidate.novaGroup);
-
-        // Composite: semantic (text match) + NutriScore (nutrition) + Nova (processing)
+        // Composite: semantic (text match) + Alt Score
         final compositeScore =
-            (0.3 * semanticScore) + (0.35 * nutriBonus) + (0.35 * novaBonus);
+            (0.3 * semanticScore) + (0.7 * (altScore / 100.0));
 
         debugPrint(
-            '[GhostSwap-Debug] ${candidate.name}: semantic=${semanticScore.toStringAsFixed(3)}, nutri=${candidate.nutriScore ?? "?"} (${nutriBonus.toStringAsFixed(1)}), nova=${candidate.novaGroup ?? "?"} (${novaBonus.toStringAsFixed(2)}), composite=${compositeScore.toStringAsFixed(3)}');
+            '[GhostSwap-Debug] ${candidate.name}: semantic=${semanticScore.toStringAsFixed(3)}, altScore=$altScore, composite=${compositeScore.toStringAsFixed(3)}');
         return {
           'product': candidate,
           'composite': compositeScore,
@@ -190,41 +279,6 @@ class GhostSwapEngine {
     }
 
     return categoryMatches;
-  }
-
-  /// Maps NutriScore grade to a 0.0-1.0 bonus value.
-  double _nutriScoreBonus(String? grade) {
-    switch (grade?.toLowerCase()) {
-      case 'a':
-        return 1.0;
-      case 'b':
-        return 0.8;
-      case 'c':
-        return 0.6;
-      case 'd':
-        return 0.4;
-      case 'e':
-        return 0.2;
-      default:
-        return 0.5; // unknown
-    }
-  }
-
-  /// Maps Nova group to a 0.0-1.0 bonus value.
-  /// Nova 1 (unprocessed) = best, Nova 4 (ultra-processed) = worst.
-  double _novaGroupBonus(int? group) {
-    switch (group) {
-      case 1:
-        return 1.0;
-      case 2:
-        return 0.75;
-      case 3:
-        return 0.5;
-      case 4:
-        return 0.2;
-      default:
-        return 0.5; // unknown
-    }
   }
 
   /// Step 3 of Workflow: Fetch pricing for the original and alternative
@@ -267,7 +321,18 @@ class GhostSwapEngine {
     final originalPriceActual =
         (originalStoreResult?['price'] as double?) ?? 5.99;
     final alternativePrice = storeResult['price'] as double;
-    final priceDiff = originalPriceActual - alternativePrice;
+    
+    final gateResult = ComparisonGate.canCompareProducts(
+      original: scannedProduct,
+      alternative: bestCandidate,
+      originalPrice: originalPriceActual,
+      alternativePrice: alternativePrice,
+    );
+
+    double? priceDiff;
+    if (gateResult.comparisonAvailable) {
+      priceDiff = gateResult.difference;
+    }
 
     final proposal = SwapProposal(
       originalProduct: scannedProduct,
@@ -278,6 +343,10 @@ class GhostSwapEngine {
       storeLocation: '${storeResult['storeName']} (${storeResult['distance']})',
       storeAddress: storeResult['storeAddress'] as String?,
       alternativePrice: alternativePrice,
+      comparisonAvailable: gateResult.comparisonAvailable,
+      comparisonBasis: gateResult.comparisonBasis,
+      equivalentAlternativeCost: gateResult.equivalentAlternativeCost,
+      comparisonReason: gateResult.reason,
     );
 
     await _cacheRepository.cacheProposal(

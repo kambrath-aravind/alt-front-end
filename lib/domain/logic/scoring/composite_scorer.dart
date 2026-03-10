@@ -25,11 +25,6 @@ class CompositeScorer implements CandidateScorer {
       final individualResult =
           await scorer.score(candidate, pricingInfo, profile);
 
-      // If any strict health requirement fails, immediately return 0.0 for this candidate.
-      if (individualResult.value == 0.0 && scorer.weight > 1.2) {
-        return ScoreResult(0.0, individualResult.reasoning);
-      }
-
       totalScore += (individualResult.value * scorer.weight);
       totalWeight += scorer.weight;
       reasons.add(individualResult.reasoning);

@@ -20,8 +20,27 @@ class HeartHealthFilter implements DietaryFilter {
   }
 
   @override
-  String violationReason(Product product) {
-    return 'High in Sodium, Fats, or Cholesterol.';
+  double score(Product product) {
+    double currentScore = 1.0;
+    
+    final sodium = product.nutriments['salt_100g'] ?? 0;
+    if (sodium > 1.2) currentScore -= 0.5;
+
+    final saturatedFat = product.nutriments['saturated-fat_100g'] ?? 0;
+    if (saturatedFat > 5.0) currentScore -= 0.5;
+
+    final totalFat = product.nutriments['fat_100g'] ?? 0;
+    if (totalFat > 17.5) currentScore -= 0.3;
+
+    final cholesterol = product.nutriments['cholesterol_100g'] ?? 0;
+    if (cholesterol > 0.06) currentScore -= 0.5;
+
+    return currentScore < 0.0 ? 0.0 : currentScore;
+  }
+
+  @override
+  List<String> violationReasons(Product product) {
+    return ['High in Sodium, Fats, or Cholesterol.'];
   }
 
   @override

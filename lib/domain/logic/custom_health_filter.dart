@@ -38,26 +38,42 @@ class CustomHealthFilter {
     return false;
   }
 
-  /// Generates a brief, punchy text explaining *why* the product failed.
-  String generateViolationReason(Product product, UserProfile profile) {
+  /// Generates a list of specific reasons explaining *why* the product failed.
+  List<String> getViolationReasons(Product product, UserProfile profile) {
     List<String> reasons = [];
 
     if (_cleanIngredientsFilter.isViolation(product)) {
-      reasons.add(_cleanIngredientsFilter.violationReason(product));
+      reasons.addAll(_cleanIngredientsFilter.violationReasons(product));
     }
 
     if (profile.dietaryPreferences.isNotEmpty) {
       for (final diet in profile.dietaryPreferences) {
         final filter = _getFilter(diet);
         if (filter?.isViolation(product) ?? false) {
-          final reason = filter?.violationReason(product);
-          if (reason != null && reason.isNotEmpty) {
-            reasons.add(reason);
+          final filterReasons = filter?.violationReasons(product);
+          if (filterReasons != null && filterReasons.isNotEmpty) {
+            reasons.addAll(filterReasons);
           }
         }
       }
     }
-    return reasons.join('\n');
+    return reasons.toSet().toList();
+  }
+
+  /// Calculates a holistic Alt Score from 0 to 100 based on all applicable filters.
+  double getAltScore(Product product, UserProfile profile) {
+    double totalScore = _cleanIngredientsFilter.score(product);
+    double filterCount = 1.0;
+
+    for (final diet in profile.dietaryPreferences) {
+      final filter = _getFilter(diet);
+      if (filter != null) {
+        totalScore += filter.score(product);
+        filterCount += 1.0;
+      }
+    }
+
+    return (totalScore / filterCount) * 100.0;
   }
 
   /// Calculates a benefit string comparing the alternative to the original.

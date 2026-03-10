@@ -7,14 +7,12 @@ import '../../domain/models/located_product.dart';
 import '../../domain/models/user_profile.dart';
 import '../../app/providers.dart';
 import '../scan/scan_controller.dart';
-import 'ghost_swap_card.dart';
+import 'alternative_details_popup.dart';
 
 enum WorkflowStep {
   analysis,
   findingAlternative,
   alternativeFound,
-  checkingPrices,
-  pricingFound,
   findingOriginalStore,
   originalStoreFound,
 }
@@ -29,9 +27,8 @@ class ProductDetailsScreen extends ConsumerStatefulWidget {
 
 class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   WorkflowStep _currentStep = WorkflowStep.analysis;
-  List<Product> _alternatives = [];
-  Product? _selectedAlternative;
-  SwapProposal? _swapProposal;
+  List<SwapProposal> _alternatives = [];
+  SwapProposal? _selectedAlternative;
   LocatedProduct? _locatedOriginal;
   String? _errorMessage;
   bool _hasAutoTriggered = false;
@@ -47,7 +44,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       final engine = ref.read(ghostSwapEngineProvider);
 
       final results =
-          await engine.findAlternatives(originalProduct, userProfile);
+          await engine.getAlternatives(originalProduct, userProfile);
 
       if (results.isNotEmpty) {
         setState(() {
@@ -70,25 +67,29 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     }
   }
 
-  Future<void> _checkPrices(Product originalProduct) async {
-    if (_selectedAlternative == null) return;
+  void _acceptSwap(SwapProposal proposal) {
+    ref.read(staplesListProvider.notifier).addItem(proposal);
+    context.go('/');
+  }
 
-    // Gate: only prompt for zip if GPS is also unavailable
+  Future<void> _keepOriginal(Product product) async {
+    // Keep _promptForZipCode inside _keepOriginal since it's used there too
     final userProfile = await ref.read(userProfileProvider.future);
     if (userProfile.defaultZipCode.isEmpty) {
-      // Check if GPS is available before bothering with zip
       final locationService = ref.read(locationServiceProvider);
       final gpsPosition = await locationService.getCurrentLocation();
       if (gpsPosition == null) {
         final zipEntered = await _promptForZipCode();
         if (!zipEntered) {
+          ref.read(staplesListProvider.notifier).addItem(product);
+          if (mounted) context.go('/');
           return;
         }
       }
     }
 
     setState(() {
-      _currentStep = WorkflowStep.checkingPrices;
+      _currentStep = WorkflowStep.findingOriginalStore;
       _errorMessage = null;
     });
 
@@ -96,29 +97,35 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       final freshProfile = await ref.read(userProfileProvider.future);
       final engine = ref.read(ghostSwapEngineProvider);
 
-      final proposal = await engine.fetchPricing(
-          originalProduct, _selectedAlternative!, freshProfile);
+      final located = await engine.fetchOriginalPricing(product, freshProfile);
 
-      if (proposal != null) {
+      if (located != null) {
         setState(() {
-          _swapProposal = proposal;
-          _currentStep = WorkflowStep.pricingFound;
+          _locatedOriginal = located;
+          _currentStep = WorkflowStep.originalStoreFound;
         });
       } else {
-        setState(() {
-          _errorMessage = "Failed to fetch pricing information.";
-          _currentStep = WorkflowStep.alternativeFound;
-        });
+        ref.read(staplesListProvider.notifier).addItem(product);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'No local pricing found. Item added without store info.')),
+          );
+          context.go('/');
+        }
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = "Error checking prices: $e";
-        _currentStep = WorkflowStep.alternativeFound;
-      });
+      ref.read(staplesListProvider.notifier).addItem(product);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error finding stores: $e')),
+        );
+        context.go('/');
+      }
     }
   }
 
-  /// Prompts user for their zip code. Returns true if entered.
   Future<bool> _promptForZipCode() async {
     final controller = TextEditingController();
     final result = await showDialog<bool>(
@@ -171,70 +178,6 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     return result ?? false;
   }
 
-  void _acceptSwap() {
-    if (_swapProposal != null) {
-      ref.read(staplesListProvider.notifier).addItem(_swapProposal);
-      context.go('/');
-    }
-  }
-
-  Future<void> _keepOriginal(Product product) async {
-    // Gate: prompt for zip code if needed
-    final userProfile = await ref.read(userProfileProvider.future);
-    if (userProfile.defaultZipCode.isEmpty) {
-      final locationService = ref.read(locationServiceProvider);
-      final gpsPosition = await locationService.getCurrentLocation();
-      if (gpsPosition == null) {
-        final zipEntered = await _promptForZipCode();
-        if (!zipEntered) {
-          // User skipped zip — add bare product
-          ref.read(staplesListProvider.notifier).addItem(product);
-          if (mounted) context.go('/');
-          return;
-        }
-      }
-    }
-
-    setState(() {
-      _currentStep = WorkflowStep.findingOriginalStore;
-      _errorMessage = null;
-    });
-
-    try {
-      final freshProfile = await ref.read(userProfileProvider.future);
-      final engine = ref.read(ghostSwapEngineProvider);
-
-      final located = await engine.fetchOriginalPricing(product, freshProfile);
-
-      if (located != null) {
-        setState(() {
-          _locatedOriginal = located;
-          _currentStep = WorkflowStep.originalStoreFound;
-        });
-      } else {
-        // No store found — add bare product and go home
-        ref.read(staplesListProvider.notifier).addItem(product);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text(
-                    'No local pricing found. Item added without store info.')),
-          );
-          context.go('/');
-        }
-      }
-    } catch (e) {
-      // Error — add bare product and go home
-      ref.read(staplesListProvider.notifier).addItem(product);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error finding stores: $e')),
-        );
-        context.go('/');
-      }
-    }
-  }
-
   void _addLocatedOriginal() {
     if (_locatedOriginal != null) {
       ref.read(staplesListProvider.notifier).addItem(_locatedOriginal);
@@ -260,16 +203,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            if (_currentStep == WorkflowStep.alternativeFound) {
+              if (_currentStep == WorkflowStep.alternativeFound) {
               setState(() {
                 _currentStep = WorkflowStep.analysis;
                 _alternatives = [];
                 _selectedAlternative = null;
-              });
-            } else if (_currentStep == WorkflowStep.pricingFound) {
-              setState(() {
-                _currentStep = WorkflowStep.alternativeFound;
-                _swapProposal = null;
               });
             } else {
               context.go('/scan');
@@ -281,8 +219,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         data: (user) {
           final filter = ref.read(customHealthFilterProvider);
           final isViolation = filter.isViolation(scannedProduct, user);
-          final violationReason =
-              filter.generateViolationReason(scannedProduct, user);
+          final violationReasons =
+              filter.getViolationReasons(scannedProduct, user);
+          final altScore = filter.getAltScore(scannedProduct, user);
 
           // Auto-trigger alternative search on violation
           if (isViolation &&
@@ -300,12 +239,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 1. Original Product Card
-                _buildProductCard(scannedProduct),
+                _buildProductCard(scannedProduct, altScore),
                 const SizedBox(height: 24),
 
                 // 2. Health Analysis Result
                 if (isViolation) ...[
-                  _buildWarningBanner(violationReason),
+                  _buildWarningBanner(violationReasons),
                   const SizedBox(height: 24),
                 ] else ...[
                   _buildApprovalBanner(user.dietaryPreferences.isNotEmpty
@@ -340,7 +279,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
   // ─── Product Card ──────────────────────────────────────────────
 
-  Widget _buildProductCard(Product product) {
+  Widget _buildProductCard(Product product, double altScore) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -363,6 +302,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                _buildAltScoreBadge(altScore),
                 _buildBadge("NutriScore",
                     product.nutriScore?.toUpperCase() ?? "?", Colors.blue),
                 _buildBadge("Nova Group", product.novaGroup?.toString() ?? "?",
@@ -375,36 +315,47 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
   }
 
+  Widget _buildAltScoreBadge(double score) {
+    Color color = Colors.green;
+    if (score < 50) {
+      color = Colors.red;
+    } else if (score < 80) {
+      color = Colors.orange;
+    }
+    return _buildBadge("Alt Score", score.toStringAsFixed(0), color);
+  }
+
   // ─── Health Banners ────────────────────────────────────────────
 
-  Widget _buildWarningBanner(String reason) {
+  Widget _buildWarningBanner(List<String> reasons) {
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.red.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.red.shade200),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Dietary Warning",
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
-                        fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(reason, style: TextStyle(color: Colors.red.shade900)),
-              ],
-            ),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        iconColor: Colors.red,
+        collapsedIconColor: Colors.red,
+        leading: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+        title: const Text("Dietary Warning",
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+                fontSize: 16)),
+        subtitle: const Text("Why it's flagged",
+            style: TextStyle(color: Colors.red, fontSize: 12)),
+        children: reasons.map((reason) => Padding(
+          padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("• ", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+              Expanded(child: Text(reason, style: TextStyle(color: Colors.red.shade900))),
+            ],
           ),
-        ],
+        )).toList(),
       ),
     );
   }
@@ -470,7 +421,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               style:
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          const Text("Tap one to select, then check local prices.",
+          const Text("Tap one to view its Alt score and local price.",
               style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 12),
 
@@ -478,19 +429,6 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           ..._alternatives.map((alt) => _buildAlternativeCard(alt)),
 
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _selectedAlternative != null
-                ? () => _checkPrices(originalProduct)
-                : null,
-            icon: const Icon(Icons.storefront),
-            label: const Text("Find Near Me"),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.all(16),
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
           Builder(
             builder: (context) {
               final zip =
@@ -518,17 +456,6 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               );
             },
           ),
-        ],
-      );
-    }
-
-    if (_currentStep == WorkflowStep.checkingPrices) {
-      return const Column(
-        children: [
-          CircularProgressIndicator(color: Colors.black),
-          SizedBox(height: 16),
-          Text("Querying local stores for availability...",
-              style: TextStyle(color: Colors.grey)),
         ],
       );
     }
@@ -567,33 +494,20 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       );
     }
 
-    if (_currentStep == WorkflowStep.pricingFound && _swapProposal != null) {
-      return Column(
-        children: [
-          const Divider(),
-          const SizedBox(height: 16),
-          GhostSwapCard(
-            proposal: _swapProposal!,
-            onAcceptSwap: _acceptSwap,
-          ),
-          TextButton(
-            onPressed: () => _keepOriginal(originalProduct),
-            child: const Text("Keep original and add to list"),
-          )
-        ],
-      );
-    }
-
     return const SizedBox.shrink();
   }
 
   // ─── Alternative Card ──────────────────────────────────────────
 
-  Widget _buildAlternativeCard(Product alt) {
-    final isSelected = _selectedAlternative?.id == alt.id;
+  Widget _buildAlternativeCard(SwapProposal proposal) {
+    final alt = proposal.alternativeProduct;
+    final isSelected = _selectedAlternative?.alternativeProduct.id == alt.id;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedAlternative = alt),
+      onTap: () {
+        setState(() => _selectedAlternative = proposal);
+        showAlternativeDetails(context, proposal, _acceptSwap);
+      },
       child: Card(
         color: isSelected ? Colors.green.shade50 : null,
         shape: RoundedRectangleBorder(
@@ -673,6 +587,44 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       alt.nutriScore?.toUpperCase() ?? "?", Colors.blue),
                   const SizedBox(height: 4),
                   _buildMiniBadge("N${alt.novaGroup ?? '?'}", Colors.orange),
+                  if (!proposal.comparisonAvailable) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        "Price Comp.\nUnavailable",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ] else if (proposal.priceDifference != null && proposal.priceDifference! > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        "Switch Savings\n\$${proposal.priceDifference!.toStringAsFixed(2)}",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],

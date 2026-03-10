@@ -10,8 +10,13 @@ class PeanutAllergyFilter implements DietaryFilter {
   }
 
   @override
-  String violationReason(Product product) {
-    return 'Contains peanuts or tree nuts.';
+  double score(Product product) {
+    return isViolation(product) ? 0.0 : 1.0;
+  }
+
+  @override
+  List<String> violationReasons(Product product) {
+    return ['Contains peanuts or tree nuts.'];
   }
 
   @override

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../domain/logic/optimized_list_info.dart';
 import '../../domain/models/swap_proposal.dart';
+import '../results/alternative_details_popup.dart';
 
 final optimizedListProvider =
     FutureProvider.family<OptimizedListInfo, String>((ref, rawList) async {
@@ -81,7 +82,7 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
       if (result.alternatives.isNotEmpty) {
         final selectedIdx = _selectedIndices[result.query] ?? 0;
         currentEstimatedTotal +=
-            result.alternatives[selectedIdx].alternativePrice;
+            result.alternatives[selectedIdx].alternativePrice ?? 0.0;
       }
     }
 
@@ -115,7 +116,7 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
                   const Text('Est. Total (Selected)',
                       style: TextStyle(fontSize: 12, color: Colors.grey)),
                   Text(
-                    '\$${currentEstimatedTotal.toStringAsFixed(2)}',
+                    '\$${(currentEstimatedTotal).toStringAsFixed(2)}',
                     style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
@@ -257,6 +258,16 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
                   setState(() {
                     _selectedIndices[result.query] = index;
                   });
+                  // Trigger deep dive
+                  showAlternativeDetails(
+                    context,
+                    item,
+                    (proposal) {
+                      ref.read(staplesListProvider.notifier).addItem(
+                          proposal.copyWith(isAccepted: true));
+                      context.go('/');
+                    },
+                  );
                 },
                 child: _buildOptimizedItemCard(item, isSelected: isSelected),
               );
@@ -269,6 +280,13 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
 
   Widget _buildOptimizedItemCard(SwapProposal proposal,
       {bool isSelected = false}) {
+    final userProfile = ref.read(userProfileProvider).valueOrNull;
+    final healthFilter = ref.read(customHealthFilterProvider);
+    double altScore = 0.0;
+    if (userProfile != null) {
+      altScore = healthFilter.getAltScore(proposal.alternativeProduct, userProfile);
+    }
+
     return Container(
       width: 280,
       margin: const EdgeInsets.only(left: 16, right: 8, bottom: 8),
@@ -331,9 +349,13 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
                   ),
                   // Price
                   Text(
-                    '\$${proposal.alternativePrice.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                    proposal.alternativePrice != null
+                        ? '\$${proposal.alternativePrice!.toStringAsFixed(2)}'
+                        : 'Tap for details',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: proposal.alternativePrice != null ? 15 : 12,
+                        color: proposal.alternativePrice != null ? Colors.black : Colors.blue),
                   ),
                 ],
               ),
@@ -345,6 +367,8 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
                 children: [
                   Row(
                     children: [
+                      _buildMiniBadgeAltScore(altScore),
+                      const SizedBox(width: 4),
                       _buildMiniBadge(
                           proposal.alternativeProduct.nutriScore
                                   ?.toUpperCase() ??
@@ -356,19 +380,20 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
                           Colors.orange),
                     ],
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.storefront,
-                          size: 12, color: Colors.grey.shade600),
-                      const SizedBox(width: 2),
-                      Text(
-                        proposal.storeLocation.split(' ').first,
-                        style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade700),
-                      ),
-                    ],
-                  ),
+                  if (proposal.storeLocation != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.storefront,
+                            size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 2),
+                        Text(
+                          proposal.storeLocation!.split(' ').first,
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
                 ],
               ),
 
@@ -420,5 +445,15 @@ class _OptimizedListScreenState extends ConsumerState<OptimizedListScreen> {
           style: TextStyle(
               fontSize: 10, fontWeight: FontWeight.bold, color: color)),
     );
+  }
+
+  Widget _buildMiniBadgeAltScore(double score) {
+    Color color = Colors.green;
+    if (score < 50) {
+      color = Colors.red;
+    } else if (score < 80) {
+      color = Colors.orange;
+    }
+    return _buildMiniBadge(score.toStringAsFixed(0), color);
   }
 }
