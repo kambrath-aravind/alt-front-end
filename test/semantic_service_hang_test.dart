@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:alt/domain/logic/semantic_service.dart';
+import 'package:alt/core/domain/logic/semantic_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

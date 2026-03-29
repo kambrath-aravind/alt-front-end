@@ -1,13 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:alt/domain/logic/ghost_swap_engine.dart';
-import 'package:alt/domain/logic/custom_health_filter.dart';
-import 'package:alt/domain/logic/semantic_service.dart';
-import 'package:alt/data/services/omni_store_service.dart';
-import 'package:alt/data/repositories/rag_cache_repository.dart';
-import 'package:alt/data/repositories/product_repository.dart';
-import 'package:alt/domain/models/product.dart';
-import 'package:alt/domain/models/swap_proposal.dart';
-import 'package:alt/domain/models/user_profile.dart';
+import 'package:alt/core/domain/logic/ghost_swap_engine.dart';
+import 'package:alt/core/domain/logic/custom_health_filter.dart';
+import 'package:alt/core/domain/logic/semantic_service.dart';
+import 'package:alt/core/data/services/omni_store_service.dart';
+import 'package:alt/core/data/repositories/rag_cache_repository.dart';
+import 'package:alt/core/data/repositories/product_repository.dart';
+import 'package:alt/core/domain/models/product.dart';
+import 'package:alt/core/domain/models/swap_proposal.dart';
+import 'package:alt/core/domain/models/user_profile.dart';
+import 'package:alt/core/domain/models/pricing_result.dart';
 
 class MockRagCacheRepository implements RagCacheRepository {
   @override
@@ -122,15 +123,16 @@ void main() {
         user.searchRadiusMiles,
     );
 
-    // In a test environment, Kroger API might fail or auth might be missing, 
-    // but we can check the behavior regardless
-    print('Pricing Result: \$pricingInfo');
-    
-    if (pricingInfo != null) {
-        expect(pricingInfo.containsKey('price'), true);
-        expect(pricingInfo.containsKey('storeName'), true);
+    // In a test environment, Kroger API might fail or auth might be missing,
+    // so we check the PricingResult regardless of success/failure
+    print('Pricing Result: $pricingInfo (success=${pricingInfo.isSuccess})');
+
+    if (pricingInfo is PricingSuccess<Map<String, dynamic>>) {
+        final data = pricingInfo.value;
+        expect(data.containsKey('price'), true);
+        expect(data.containsKey('storeName'), true);
     } else {
-        print('Pricing info was null (likely API auth or mock data limit)');
+        print('Pricing failed (likely API auth or mock data limit): ${pricingInfo.failureOrNull}');
     }
     
     print('Test completely successful. Integration logic holds.');

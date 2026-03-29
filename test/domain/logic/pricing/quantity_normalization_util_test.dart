@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:alt/domain/models/product.dart';
-import 'package:alt/domain/logic/pricing/quantity_normalization_util.dart';
+import 'package:alt/core/domain/models/product.dart';
+import 'package:alt/core/domain/logic/pricing/quantity_normalization_util.dart';
 
 Product _makeProduct(String name, {List<String>? categoryTags, String? comparedToCategory}) {
   return Product(

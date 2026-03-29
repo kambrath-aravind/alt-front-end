@@ -21,7 +21,7 @@ migrate_working_dir/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -40,12 +40,8 @@ app.*.symbols
 app.*.map.json
 
 # Android build artifacts
-/android/app/debug
-/android/app/profile
-/android/app/release
-/android/app/build/
-/android/app/.cxx/
-/android/build/
+**/build/
+**/.cxx/
 **/android/**/GeneratedPluginRegistrant.java
 local.properties
 
@@ -67,6 +63,11 @@ local.properties
 # macOS specific
 .DS_Store
 
-# Environment
-.env
+# Environment and Keys
+.env*
 android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+*.keystore
+*.jks
+key.properties
+local.properties

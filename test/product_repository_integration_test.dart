@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:developer';
-import 'package:alt/data/repositories/product_repository.dart';
+import 'package:alt/core/data/repositories/product_repository.dart';
 
 void main() {
   test('ProductRepository.searchProducts fetches data from internet', () async {

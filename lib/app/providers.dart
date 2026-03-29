@@ -1,23 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
-import '../domain/logic/custom_health_filter.dart';
-import '../domain/logic/ghost_swap_engine.dart';
-import '../data/services/location_service.dart';
-import '../data/services/omni_store_service.dart';
-import '../data/services/throttling_service.dart';
-import '../data/repositories/product_repository.dart';
-import '../data/repositories/rag_cache_repository.dart';
-import '../domain/models/user_profile.dart';
+import 'package:alt/core/domain/logic/custom_health_filter.dart';
+import 'package:alt/core/domain/logic/ghost_swap_engine.dart';
+import 'package:alt/core/data/services/location_service.dart';
+import 'package:alt/core/data/services/omni_store_service.dart';
+import 'package:alt/core/data/services/throttling_service.dart';
+import 'package:alt/core/data/repositories/product_repository.dart';
+import 'package:alt/core/data/repositories/rag_cache_repository.dart';
+import 'package:alt/core/domain/models/user_profile.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-import '../domain/logic/semantic_service.dart';
-import '../domain/logic/scoring/candidate_scorer.dart';
-import '../domain/logic/scoring/composite_scorer.dart';
-import '../domain/logic/scoring/distance_scorer.dart';
-import '../domain/logic/scoring/health_scorer.dart';
-import '../domain/logic/scoring/price_scorer.dart';
-import '../domain/logic/notepad_optimization_engine.dart';
+import 'package:alt/core/domain/logic/semantic_service.dart';
+import 'package:alt/core/domain/logic/scoring/candidate_scorer.dart';
+import 'package:alt/core/domain/logic/scoring/composite_scorer.dart';
+import 'package:alt/core/domain/logic/scoring/distance_scorer.dart';
+import 'package:alt/core/domain/logic/scoring/health_scorer.dart';
+import 'package:alt/core/domain/logic/scoring/price_scorer.dart';
+import 'package:alt/core/domain/logic/notepad_optimization_engine.dart';
 
 // Repositories & Services
 final productRepositoryProvider = Provider((ref) => ProductRepository());

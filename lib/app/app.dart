@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../presentation/scan/scanner_screen.dart';
-import '../presentation/results/staples_list_screen.dart';
-import '../presentation/results/product_details_screen.dart';
-import '../presentation/admin/admin_screen.dart';
-import '../presentation/home/home_screen.dart';
-import '../presentation/notepad/notepad_screen.dart';
-import '../presentation/notepad/optimized_list_screen.dart';
-import '../presentation/onboarding/onboarding_screen.dart';
+import 'package:alt/features/scan/scanner_screen.dart';
+import 'package:alt/features/results/staples_list_screen.dart';
+import 'package:alt/features/results/product_details_screen.dart';
+import 'package:alt/features/admin/admin_screen.dart';
+import 'package:alt/features/home/home_screen.dart';
+import 'package:alt/features/notepad/notepad_screen.dart';
+import 'package:alt/features/notepad/optimized_list_screen.dart';
+import 'package:alt/features/onboarding/onboarding_screen.dart';
 import 'providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
