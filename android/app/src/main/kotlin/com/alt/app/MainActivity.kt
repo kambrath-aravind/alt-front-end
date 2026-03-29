@@ -1,4 +1,4 @@
-package com.alt.app.alt
+package com.alt.app
 
 import io.flutter.embedding.android.FlutterActivity
 
