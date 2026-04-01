@@ -228,7 +228,7 @@ class StoreMatchUtil {
 
     final recall = targetTotalWeight > 0 ? intersectWeight / targetTotalWeight : 0.0;
     final precision = candidateTotalWeight > 0 ? intersectWeight / candidateTotalWeight : 0.0;
-    return ((recall * 0.7) + (precision * 0.3)).clamp(0.0, 1.0);
+    return ((recall * 0.8) + (precision * 0.2)).clamp(0.0, 1.0);
   }
 
   static double _brandScore(String? targetBrand, String? candidateBrand) {
