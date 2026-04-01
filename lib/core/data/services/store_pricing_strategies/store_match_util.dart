@@ -429,6 +429,14 @@ class StoreMatchUtil {
     'kg',
     'fl',
     'fluid',
+    'original',
+    'premium',
+    'classic',
+    'style',
+    'natural',
+    'pure',
+    'best',
+    'great',
   };
 }
 
