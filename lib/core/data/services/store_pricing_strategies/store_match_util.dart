@@ -210,17 +210,20 @@ class StoreMatchUtil {
     final intersectSet = targetTokens.intersection(candidateTokens);
     double intersectWeight = 0;
     for (final t in intersectSet) {
-      intersectWeight += t.length * t.length;
+      final len = t.length;
+      intersectWeight += len * len * len;
     }
 
     double targetTotalWeight = 0;
     for (final t in targetTokens) {
-      targetTotalWeight += t.length * t.length;
+      final len = t.length;
+      targetTotalWeight += len * len * len;
     }
 
     double candidateTotalWeight = 0;
     for (final t in candidateTokens) {
-      candidateTotalWeight += t.length * t.length;
+      final len = t.length;
+      candidateTotalWeight += len * len * len;
     }
 
     final recall = targetTotalWeight > 0 ? intersectWeight / targetTotalWeight : 0.0;
