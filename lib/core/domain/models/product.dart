@@ -75,13 +75,17 @@ class Product {
     // 1. Try category tags (if not just "other")
     final leafCategory = _findLeafCategory(categoryTags);
     if (leafCategory != null && !leafCategory.contains('other')) {
-      terms.add(leafCategory);
+      // Strip locale prefix (e.g. "en:") and convert hyphens to spaces
+      // so the term works in both category API and text search fallback.
+      final cleaned = _cleanTag(leafCategory);
+      terms.add(cleaned);
     }
 
     // 2. Add compared_to_category
     if (comparedToCategory != null && comparedToCategory!.isNotEmpty) {
-      if (!terms.contains(comparedToCategory)) {
-        terms.add(comparedToCategory!);
+      final cleanedCompared = _cleanTag(comparedToCategory!);
+      if (!terms.contains(cleanedCompared)) {
+        terms.add(cleanedCompared);
       }
     }
 
@@ -95,10 +99,15 @@ class Product {
 
     // 4. Last resort: even "other" category
     if (terms.isEmpty && leafCategory != null) {
-      terms.add(leafCategory);
+      terms.add(_cleanTag(leafCategory));
     }
 
     return terms;
+  }
+
+  /// Strips locale prefixes (e.g. "en:", "fr:") and converts hyphens to spaces.
+  static String _cleanTag(String tag) {
+    return tag.replaceFirst(RegExp(r'^[a-z]{2}:'), '').replaceAll('-', ' ');
   }
 
   static String? _findLeafCategory(List<String> categoryTags) {

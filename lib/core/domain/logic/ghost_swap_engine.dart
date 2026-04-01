@@ -8,6 +8,7 @@ import 'package:alt/core/domain/models/pricing_result.dart';
 import 'package:alt/core/data/services/omni_store_service.dart';
 import 'package:alt/core/data/repositories/rag_cache_repository.dart';
 import 'package:alt/core/data/repositories/product_repository.dart';
+import 'package:alt/core/config/app_config.dart';
 import 'custom_health_filter.dart';
 import 'semantic_service.dart';
 import 'pricing/comparison_gate.dart';
@@ -64,10 +65,12 @@ class GhostSwapEngine {
       return [];
     }
 
-    final cachedProposal = await _cacheRepository.getCachedProposal(
-        scannedProduct.id, user.dietaryPreferences);
-    if (cachedProposal != null) {
-      return [cachedProposal];
+    if (AppConfig.enableFirestoreCache) {
+      final cachedProposal = await _cacheRepository.getCachedProposal(
+          scannedProduct.id, user.dietaryPreferences);
+      if (cachedProposal != null) {
+        return [cachedProposal];
+      }
     }
 
     final alternatives = await findAlternatives(scannedProduct, user);
@@ -155,8 +158,10 @@ class GhostSwapEngine {
         pricingFailure: pricingFailure,
       );
 
-      await _cacheRepository.cacheProposal(
-          scannedProduct.id, user.dietaryPreferences, proposal);
+      if (AppConfig.enableFirestoreCache) {
+        await _cacheRepository.cacheProposal(
+            scannedProduct.id, user.dietaryPreferences, proposal);
+      }
 
       return proposal;
     }));
@@ -412,8 +417,10 @@ class GhostSwapEngine {
       priceDirection: priceDirection,
     );
 
-    await _cacheRepository.cacheProposal(
-        scannedProduct.id, user.dietaryPreferences, proposal);
+    if (AppConfig.enableFirestoreCache) {
+      await _cacheRepository.cacheProposal(
+          scannedProduct.id, user.dietaryPreferences, proposal);
+    }
 
     return proposal;
   }

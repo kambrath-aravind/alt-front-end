@@ -5,10 +5,16 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../core/config/app_config.dart';
 import 'package:alt/core/domain/models/user_profile.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+
+  static const CameraPosition _initialPosition = CameraPosition(
+    target: LatLng(40.7128, -74.0060), // Default to NYC
+    zoom: 14.4746,
+  );
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -17,11 +23,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Completer<GoogleMapController> _controller = Completer();
   int _selectedIndex = 0;
-
-  static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(40.7128, -74.0060), // Default to NYC
-    zoom: 14.4746,
-  );
 
   void _onItemTapped(int index) {
     setState(() {
@@ -66,12 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Stack(
         children: [
           // 1. Map Background
-          GoogleMap(
-            mapType: MapType.normal,
-            initialCameraPosition: _initialPosition,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
+          _MapBackground(
             onMapCreated: (GoogleMapController controller) async {
               if (!_controller.isCompleted) {
                 _controller.complete(controller);
@@ -337,6 +333,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           )
         ],
       ),
+    );
+  }
+}
+
+class _MapBackground extends StatelessWidget {
+  final MapCreatedCallback onMapCreated;
+
+  const _MapBackground({required this.onMapCreated});
+
+  @override
+  Widget build(BuildContext context) {
+    return GoogleMap(
+      mapType: MapType.normal,
+      initialCameraPosition: HomeScreen._initialPosition,
+      myLocationEnabled: true,
+      myLocationButtonEnabled: false,
+      zoomControlsEnabled: false,
+      cloudMapId: AppConfig.googleMapsMapId,
+      onMapCreated: onMapCreated,
     );
   }
 }

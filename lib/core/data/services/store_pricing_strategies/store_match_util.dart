@@ -71,7 +71,7 @@ class StoreCandidateMatch {
 }
 
 class StoreMatchUtil {
-  static const double nameSearchThreshold = 0.62;
+  static const double nameSearchThreshold = 0.50;
   static const double upcSearchThreshold = 0.42;
 
   static List<StoreCandidateMatch> rankCandidates({
@@ -329,7 +329,7 @@ class StoreMatchUtil {
       }
     }
 
-    return penalty.clamp(0.0, 0.32);
+    return penalty.clamp(0.0, 0.20);
   }
 
   static Map<String, String> _variantDimensions(String text) {
