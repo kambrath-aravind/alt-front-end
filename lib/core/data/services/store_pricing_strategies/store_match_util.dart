@@ -208,23 +208,23 @@ class StoreMatchUtil {
     }
 
     final intersectSet = targetTokens.intersection(candidateTokens);
-    double intersectLength = 0;
+    double intersectWeight = 0;
     for (final t in intersectSet) {
-      intersectLength += t.length;
+      intersectWeight += t.length * t.length;
     }
 
-    double targetTotalLength = 0;
+    double targetTotalWeight = 0;
     for (final t in targetTokens) {
-      targetTotalLength += t.length;
+      targetTotalWeight += t.length * t.length;
     }
 
-    double candidateTotalLength = 0;
+    double candidateTotalWeight = 0;
     for (final t in candidateTokens) {
-      candidateTotalLength += t.length;
+      candidateTotalWeight += t.length * t.length;
     }
 
-    final recall = targetTotalLength > 0 ? intersectLength / targetTotalLength : 0.0;
-    final precision = candidateTotalLength > 0 ? intersectLength / candidateTotalLength : 0.0;
+    final recall = targetTotalWeight > 0 ? intersectWeight / targetTotalWeight : 0.0;
+    final precision = candidateTotalWeight > 0 ? intersectWeight / candidateTotalWeight : 0.0;
     return ((recall * 0.4) + (precision * 0.6)).clamp(0.0, 1.0);
   }
 
