@@ -210,7 +210,7 @@ class StoreMatchUtil {
     final intersection = targetTokens.intersection(candidateTokens).length;
     final recall = intersection / targetTokens.length;
     final precision = intersection / candidateTokens.length;
-    return ((recall * 0.6) + (precision * 0.4)).clamp(0.0, 1.0);
+    return ((recall * 0.4) + (precision * 0.6)).clamp(0.0, 1.0);
   }
 
   static double _brandScore(String? targetBrand, String? candidateBrand) {
