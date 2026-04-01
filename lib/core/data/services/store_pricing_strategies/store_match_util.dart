@@ -207,9 +207,24 @@ class StoreMatchUtil {
       return 0.0;
     }
 
-    final intersection = targetTokens.intersection(candidateTokens).length;
-    final recall = intersection / targetTokens.length;
-    final precision = intersection / candidateTokens.length;
+    final intersectSet = targetTokens.intersection(candidateTokens);
+    double intersectLength = 0;
+    for (final t in intersectSet) {
+      intersectLength += t.length;
+    }
+
+    double targetTotalLength = 0;
+    for (final t in targetTokens) {
+      targetTotalLength += t.length;
+    }
+
+    double candidateTotalLength = 0;
+    for (final t in candidateTokens) {
+      candidateTotalLength += t.length;
+    }
+
+    final recall = targetTotalLength > 0 ? intersectLength / targetTotalLength : 0.0;
+    final precision = candidateTotalLength > 0 ? intersectLength / candidateTotalLength : 0.0;
     return ((recall * 0.4) + (precision * 0.6)).clamp(0.0, 1.0);
   }
 
