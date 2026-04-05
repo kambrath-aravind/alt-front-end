@@ -68,28 +68,33 @@ class Product {
   }
 
   /// Returns prioritized search terms for finding alternatives.
-  /// Falls back through: categoryTags → comparedToCategory → ciqualTags
+  /// Uses a layered fallback strategy: Taxonomy -> Ingredients -> Keywords -> Smart Name
   List<String> get searchTerms {
     final terms = <String>[];
 
-    // 1. Try category tags (if not just "other")
-    final leafCategory = _findLeafCategory(categoryTags);
-    if (leafCategory != null && !leafCategory.contains('other')) {
-      // Strip locale prefix (e.g. "en:") and convert hyphens to spaces
-      // so the term works in both category API and text search fallback.
-      final cleaned = _cleanTag(leafCategory);
-      terms.add(cleaned);
+    bool isValid(String term) {
+      final t = term.toLowerCase();
+      return !_invalidTags.contains(t) &&
+          !t.contains('other') &&
+          (brand.isEmpty || !t.contains(brand.toLowerCase()));
     }
 
-    // 2. Add compared_to_category
-    if (comparedToCategory != null && comparedToCategory!.isNotEmpty) {
+    // LAYER 1: Explicit Taxonomies
+    // 1.1 Category Tags
+    final leafCategory = _findLeafCategory(categoryTags);
+    if (leafCategory != null && isValid(leafCategory)) {
+      terms.add(_cleanTag(leafCategory));
+    }
+
+    // 1.2 Compared To
+    if (comparedToCategory != null && isValid(comparedToCategory!)) {
       final cleanedCompared = _cleanTag(comparedToCategory!);
       if (!terms.contains(cleanedCompared)) {
         terms.add(cleanedCompared);
       }
     }
 
-    // 3. Add valid ciqual tags (convert to search-friendly format)
+    // 1.3 Ciqual
     for (final tag in validCiqualTags) {
       final searchTerm = tag.replaceAll('-', ' ');
       if (!terms.any((t) => t.contains(searchTerm) || searchTerm.contains(t))) {
@@ -97,9 +102,31 @@ class Product {
       }
     }
 
-    // 4. Last resort: even "other" category
-    if (terms.isEmpty && leafCategory != null) {
-      terms.add(_cleanTag(leafCategory));
+    // LAYER 2: Ingredient Fallback (for single-ingredient items like pistachios/milk)
+    if (terms.isEmpty && ingredients.isNotEmpty) {
+      final firstIng = ingredients.first.trim().toLowerCase();
+      if (isValid(firstIng)) {
+        terms.add(firstIng);
+      }
+    }
+
+    // LAYER 3: Keyword Fallback (not currently in Product model, but we could add if needed)
+    // For now, we skip internal keywords as they aren't fully exposed in this model
+
+    // LAYER 4: Smart Name Fallback (Remove brand, use first 2 words)
+    if (terms.isEmpty) {
+      String coreName = name.toLowerCase();
+      if (brand.isNotEmpty) {
+        coreName = coreName.replaceAll(brand.toLowerCase(), '').trim();
+      }
+      if (coreName.isEmpty) coreName = name.toLowerCase();
+
+      final parts = coreName.split(RegExp(r'\s+')).where((p) => p.length > 2).toList();
+      if (parts.length >= 2) {
+        terms.add('${parts[0]} ${parts[1]}');
+      } else if (parts.isNotEmpty) {
+        terms.add(parts[0]);
+      }
     }
 
     return terms;

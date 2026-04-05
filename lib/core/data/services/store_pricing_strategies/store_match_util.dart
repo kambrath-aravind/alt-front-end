@@ -207,10 +207,28 @@ class StoreMatchUtil {
       return 0.0;
     }
 
-    final intersection = targetTokens.intersection(candidateTokens).length;
-    final recall = intersection / targetTokens.length;
-    final precision = intersection / candidateTokens.length;
-    return ((recall * 0.6) + (precision * 0.4)).clamp(0.0, 1.0);
+    final intersectSet = targetTokens.intersection(candidateTokens);
+    double intersectWeight = 0;
+    for (final t in intersectSet) {
+      final len = t.length;
+      intersectWeight += len * len * len;
+    }
+
+    double targetTotalWeight = 0;
+    for (final t in targetTokens) {
+      final len = t.length;
+      targetTotalWeight += len * len * len;
+    }
+
+    double candidateTotalWeight = 0;
+    for (final t in candidateTokens) {
+      final len = t.length;
+      candidateTotalWeight += len * len * len;
+    }
+
+    final recall = targetTotalWeight > 0 ? intersectWeight / targetTotalWeight : 0.0;
+    final precision = candidateTotalWeight > 0 ? intersectWeight / candidateTotalWeight : 0.0;
+    return ((recall * 0.8) + (precision * 0.2)).clamp(0.0, 1.0);
   }
 
   static double _brandScore(String? targetBrand, String? candidateBrand) {
@@ -352,7 +370,13 @@ class StoreMatchUtil {
     return _normalizeText(text)
         .split(' ')
         .where((token) => token.length > 1 && !_stopWords.contains(token))
-        .toSet();
+        .map((token) {
+      if (token.length < 4) return token;
+      if (token.endsWith('ies')) return '${token.substring(0, token.length - 3)}y';
+      if (token.endsWith('es')) return token.substring(0, token.length - 2);
+      if (token.endsWith('s')) return token.substring(0, token.length - 1);
+      return token;
+    }).toSet();
   }
 
   static String _normalizeText(String? text) {
@@ -429,6 +453,14 @@ class StoreMatchUtil {
     'kg',
     'fl',
     'fluid',
+    'original',
+    'premium',
+    'classic',
+    'style',
+    'natural',
+    'pure',
+    'best',
+    'great',
   };
 }
 

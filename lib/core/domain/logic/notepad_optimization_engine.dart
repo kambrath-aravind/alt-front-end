@@ -30,25 +30,20 @@ class NotepadOptimizationEngine {
     List<String> unresolvable = [];
     double totalCost = 0.0;
 
-    // TIER A Concurrency: Map all queries to Futures and execute simultaneously
-    final queryFutures = queries.map((query) async {
+    for (final query in queries) {
       debugPrint('[NotepadEngine] Start Optimizing: $query');
       final alternatives = await _optimizeSingleQuery(query, user);
-      return {'query': query, 'alternatives': alternatives};
-    }).toList();
-
-    final completedQueries = await Future.wait(queryFutures);
-
-    for (final completed in completedQueries) {
-      final query = completed['query'] as String;
-      final alternatives = completed['alternatives'] as List<SwapProposal>;
-
+      
       if (alternatives.isNotEmpty) {
         results.add(OptimizationResult(query, alternatives));
         totalCost += alternatives.first.alternativePrice ?? 0.0;
       } else {
         unresolvable.add(query);
       }
+      
+      // Respect OpenFoodFacts rate limits (10 searches/min).
+      // We use a 1-second delay between queries to balance speed and reliability.
+      await Future.delayed(const Duration(milliseconds: 1000));
     }
 
     return OptimizedListInfo(

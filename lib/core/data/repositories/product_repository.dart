@@ -9,15 +9,35 @@ class ProductRepository {
 
   // Configuration
   static const _timeout = Duration(seconds: 20);
-  static const _maxRetries = 2;
+  static const _maxRetries = 5;
 
   ProductRepository({http.Client? client}) : _client = client ?? http.Client();
 
   /// Generic HTTP GET with timeout and retry logic.
+  /// Retries on timeouts, exceptions, AND server errors (503/429).
   Future<http.Response?> _getWithRetry(Uri url) async {
+    final headers = {
+      'User-Agent': 'AltApp/1.0 (Mobile; Food Search)',
+      'Accept': 'application/json',
+    };
+
     for (int attempt = 0; attempt <= _maxRetries; attempt++) {
       try {
-        final response = await _client.get(url).timeout(_timeout);
+        final response = await _client.get(url, headers: headers).timeout(_timeout);
+
+        // Treat 503 (Service Unavailable) and 429 (Too Many Requests) as retryable.
+        if (response.statusCode == 503 || response.statusCode == 429) {
+          debugPrint(
+              '[ALT_APP] HTTP ${response.statusCode} on attempt ${attempt + 1} for $url');
+          if (attempt < _maxRetries) {
+            await Future.delayed(Duration(milliseconds: 1500 * (attempt + 1)));
+            continue;
+          }
+          // All retries exhausted — return null so callers get an empty result
+          // instead of trying to parse an HTML error page as JSON.
+          return null;
+        }
+
         return response;
       } on TimeoutException {
         debugPrint('[ALT_APP] Timeout on attempt ${attempt + 1} for $url');
@@ -25,7 +45,7 @@ class ProductRepository {
         debugPrint('[ALT_APP] Error on attempt ${attempt + 1}: $e');
       }
 
-      // Wait before retry (exponential backoff: 500ms, 1000ms)
+      // Wait before retry (exponential backoff: 500ms, 1000ms, …)
       if (attempt < _maxRetries) {
         await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
       }
@@ -83,7 +103,7 @@ class ProductRepository {
     // Instead of forcing nutrition sorting (which ruins relevancy for text matches), we sort by popularity/scans.
     final url =
         Uri.parse('https://world.openfoodfacts.org/cgi/search.pl?action=process'
-            '&search_terms=$query'
+            '&search_terms=${Uri.encodeComponent(query)}'
             '&sort_by=unique_scans_n'
             '&tagtype_0=countries&tag_contains_0=contains&tag_0=$countryTag'
             '&page_size=30&json=1');
@@ -112,7 +132,7 @@ class ProductRepository {
     // We use strict tag filtering to ensure we only get apples-to-apples comparisons.
     final url =
         Uri.parse('https://world.openfoodfacts.org/cgi/search.pl?action=process'
-            '&tagtype_0=categories&tag_contains_0=contains&tag_0=$categoryTag'
+            '&tagtype_0=categories&tag_contains_0=contains&tag_0=${Uri.encodeComponent(categoryTag)}'
             '&tagtype_1=countries&tag_contains_1=contains&tag_1=$countryTag'
             '&sort_by=nutrition_grade_asc&page_size=30&json=1');
 
